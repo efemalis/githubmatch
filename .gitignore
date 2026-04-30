@@ -1,0 +1,10 @@
+# dependencies
+node_modules
+dist
+dist-ssr
+*.local
+
+# dotenv environment variables
+.env
+.env.*
+!.env.example
