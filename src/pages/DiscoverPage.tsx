@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Star, GitFork, AlertCircle, Loader2, ExternalLink, Heart, X, RefreshCw, BookOpen } from 'lucide-react';
+import { Star, GitFork, AlertCircle, Loader2, ExternalLink, Heart, X, RefreshCw, BookOpen, Check } from 'lucide-react';
 import { fetchDiscoverProjects, calculateMatchScore, analyzeTopLanguages, fetchGithubRepos } from '../lib/github';
 import { supabase } from '../lib/supabase';
+import { motion, useMotionValue, useTransform, AnimatePresence, animate } from 'framer-motion';
 
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-advice`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -22,6 +23,119 @@ interface Project {
 const SEEN_KEY = 'devmatch_seen_ids';
 const LIKED_LANGS_KEY = 'devmatch_liked_langs';
 
+function SwipeCard({ project, isTop, onSkip, onSave, onDetail, userLanguages, getLikedLanguages, calculateMatchScore }: any) {
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-200, 200], [-15, 15]);
+  const cardOpacity = useTransform(x, [-200, 0, 200], [0.8, 1, 0.8]);
+  
+  // Damga opaklıkları - Mobilde daha hassas çalışması için eşikleri ayarladım
+  const likeOpacity = useTransform(x, [20, 100], [0, 1]);
+  const skipOpacity = useTransform(x, [-20, -100], [0, 1]);
+
+  const handleDragEnd = (_: any, info: any) => {
+    const threshold = 100; // Ne kadar kaydırılırsa kabul edilecek
+    if (info.offset.x > threshold) {
+      animate(x, 500, { duration: 0.3, ease: "easeOut" });
+      setTimeout(() => onSave(project), 200);
+    } 
+    else if (info.offset.x < -threshold) {
+      animate(x, -500, { duration: 0.3, ease: "easeOut" });
+      setTimeout(() => onSkip(project.id), 200);
+    } 
+    else {
+      // Yeterince kaydırılmadıysa yay gibi merkeze geri dönsün
+      animate(x, 0, { type: "spring", stiffness: 300, damping: 20 });
+    }
+  };
+
+  const { score, reason } = calculateMatchScore(project, userLanguages, getLikedLanguages());
+  const matchColor = score >= 75
+    ? 'text-green-400 bg-green-400/10 border-green-400/20'
+    : score >= 55
+    ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20'
+    : 'text-tx-muted bg-surface-overlay border-surface-border';
+
+  return (
+    <motion.div
+      style={{ x, rotate, opacity: cardOpacity }}
+      // TINDER EFEKTİ: Sadece üstteki kart sürüklenebilir. Alttakiler küçültülüp aşağı itilir.
+      animate={{ 
+        scale: isTop ? 1 : 0.92, 
+        y: isTop ? 0 : 25,
+        zIndex: isTop ? 10 : 1,
+        pointerEvents: isTop ? 'auto' : 'none' 
+      }}
+      drag={isTop ? "x" : false}
+      dragConstraints={{ left: 0, right: 0 }} // Parmak bırakıldığında merkeze dönme kuvveti uygular
+      dragElastic={0.8} // Mobilde kaydırmayı kolaylaştırır
+      onDragEnd={handleDragEnd}
+      className="absolute w-full cursor-grab active:cursor-grabbing select-none touch-none"
+    >
+      {/* SAĞA KAYDIR — Koyu Yeşil Tik Damgası (Framer Motion Rotate ile düzeltildi) */}
+      <motion.div
+        style={{ opacity: likeOpacity, rotate: -15 }}
+        className="absolute top-8 left-6 z-30 w-24 h-24 rounded-full bg-green-950/90 border-4 border-green-500 flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.4)] pointer-events-none"
+      >
+        <Check strokeWidth={4} className="w-12 h-12 text-green-400" />
+      </motion.div>
+
+      {/* SOLA KAYDIR — Koyu Kırmızı Çarpı Damgası */}
+      <motion.div
+        style={{ opacity: skipOpacity, rotate: 15 }}
+        className="absolute top-8 right-6 z-30 w-24 h-24 rounded-full bg-red-950/90 border-4 border-red-500 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] pointer-events-none"
+      >
+        <X strokeWidth={4} className="w-12 h-12 text-red-400" />
+      </motion.div>
+
+      <div className="bg-surface-raised border border-surface-border rounded-2xl p-6 shadow-2xl relative overflow-hidden h-[450px] flex flex-col">
+        <div className="flex justify-between items-start mb-3">
+          <h3 className="text-lg font-semibold text-tx-primary truncate pr-3">{project.name}</h3>
+          <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-tx-muted hover:text-accent transition-colors shrink-0">
+            <ExternalLink size={18} />
+          </a>
+        </div>
+
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${matchColor}`}>
+            🧠 AI Match: %{score}
+          </span>
+          <span className="text-[10px] text-tx-muted truncate">{reason}</span>
+        </div>
+
+        <p className="text-sm text-tx-secondary line-clamp-4 mb-4 flex-grow">{project.description}</p>
+
+        {project.topics?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {project.topics.slice(0, 4).map((topic: string) => (
+              <span key={topic} className="px-2 py-0.5 text-[10px] rounded bg-surface-overlay border border-surface-border text-tx-muted font-mono">{topic}</span>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pb-4 border-b border-surface-border mb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 text-tx-secondary text-xs"><Star size={13} className="text-yellow-500" />{(project.stars || 0).toLocaleString()}</div>
+            <div className="flex items-center gap-1 text-tx-secondary text-xs"><GitFork size={13} />{(project.forks || 0).toLocaleString()}</div>
+          </div>
+          <span className="text-[10px] font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">{project.language || 'Bilinmiyor'}</span>
+        </div>
+
+        <div className="flex items-center gap-2 relative z-40">
+          <button onClick={() => { if(isTop) { animate(x, -500, { duration: 0.2 }); setTimeout(() => onSkip(project.id), 200); } }} className="flex items-center justify-center py-3 px-4 rounded-xl border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-red-400 transition-all text-sm">
+            <X size={18} />
+          </button>
+          <button onClick={() => isTop && onDetail(project)} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-accent transition-all font-medium text-sm">
+            <BookOpen size={16} /> Detay
+          </button>
+          <button onClick={() => { if(isTop) { animate(x, 500, { duration: 0.2 }); setTimeout(() => onSave(project), 200); } }} className="flex items-center justify-center py-3 px-4 rounded-xl bg-tx-primary text-surface-base hover:opacity-90 transition-all text-sm">
+            <Heart size={18} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // Proje detay modalı
 function ProjectDetailModal({ project, onClose }: { project: Project; onClose: () => void }) {
   const [detail, setDetail] = useState<string | null>(null);
@@ -31,7 +145,7 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
     const idea = {
       title: project.name,
       description: project.description,
-      techStack: [project.language, ...project.topics].filter(Boolean),
+      techStack: [project.language, ...(project.topics || [])].filter(Boolean),
       difficulty: 'Orta',
     };
 
@@ -59,8 +173,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
       <div className="bg-surface-base border border-surface-border rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-
-        {/* Modal Header (Hatalı kısım düzeltildi, sadece proje adı gösteriliyor) */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
           <h2 className="text-xl font-bold text-tx-primary">{project.name} Raporu</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-overlay text-tx-secondary transition-colors">
@@ -68,29 +180,27 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
           </button>
         </div>
 
-        {/* Meta */}
         <div className="flex items-center gap-4 px-6 py-3 border-b border-surface-border shrink-0 flex-wrap">
           <div className="flex items-center gap-1.5 text-xs text-tx-secondary">
             <Star size={13} className="text-yellow-500" />
-            {project.stars.toLocaleString()}
+            {(project.stars || 0).toLocaleString()}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-tx-secondary">
             <GitFork size={13} />
-            {project.forks.toLocaleString()}
+            {(project.forks || 0).toLocaleString()}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-green-400">
             <AlertCircle size={13} />
-            {project.issues} açık issue
+            {project.issues || 0} açık issue
           </div>
           <span className="text-xs font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">
-            {project.language}
+            {project.language || 'Bilinmiyor'}
           </span>
-          {project.topics.map(t => (
+          {project.topics?.map(t => (
             <span key={t} className="text-[10px] px-2 py-0.5 rounded bg-surface-overlay border border-surface-border text-tx-muted font-mono">{t}</span>
           ))}
         </div>
 
-        {/* AI Detay */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
@@ -119,21 +229,30 @@ export default function DiscoverPage() {
   const [userRepoCount, setUserRepoCount] = useState(0);
   const [personalizedMode, setPersonalizedMode] = useState(true);
 
-  const getSeenIds = (): string[] => JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
-  const getLikedLanguages = (): string[] => JSON.parse(localStorage.getItem(LIKED_LANGS_KEY) || '[]');
+  // Gizli sekme çökmelerini engellemek için Try-Catch blokları eklendi
+  const getSeenIds = (): string[] => {
+    try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'); } catch { return []; }
+  };
+  const getLikedLanguages = (): string[] => {
+    try { return JSON.parse(localStorage.getItem(LIKED_LANGS_KEY) || '[]'); } catch { return []; }
+  };
 
   const addSeenIds = (ids: string[]) => {
-    const current = getSeenIds();
-    const updated = [...new Set([...current, ...ids])];
-    localStorage.setItem(SEEN_KEY, JSON.stringify(updated.slice(-200)));
+    try {
+      const current = getSeenIds();
+      const updated = [...new Set([...current, ...ids])];
+      localStorage.setItem(SEEN_KEY, JSON.stringify(updated.slice(-200)));
+    } catch {}
   };
 
   const addLikedLanguage = (language: string) => {
     if (!language || language === 'Bilinmiyor') return;
-    const current = getLikedLanguages();
-    if (!current.includes(language)) {
-      localStorage.setItem(LIKED_LANGS_KEY, JSON.stringify([...current, language]));
-    }
+    try {
+      const current = getLikedLanguages();
+      if (!current.includes(language)) {
+        localStorage.setItem(LIKED_LANGS_KEY, JSON.stringify([...current, language]));
+      }
+    } catch {}
   };
 
   useEffect(() => {
@@ -154,9 +273,9 @@ export default function DiscoverPage() {
     fetchUserInfo();
   }, []);
 
-  // İstenen değişiklik 3 ve 4: loadProjects güncellendi ve useEffect bağımlılığı eklendi
   useEffect(() => {
     loadProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, personalizedMode]);
 
   const loadProjects = async () => {
@@ -174,7 +293,7 @@ export default function DiscoverPage() {
   const handleSave = async (project: Project) => {
     setProjects(prev => prev.filter(p => p.id !== project.id));
     addLikedLanguage(project.language);
-    project.topics.forEach(t => addLikedLanguage(t));
+    project.topics?.forEach(t => addLikedLanguage(t));
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
@@ -193,13 +312,11 @@ export default function DiscoverPage() {
   const likedLanguages = getLikedLanguages();
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 animate-slide-up">
-
+    <div className="max-w-6xl mx-auto pb-20 animate-slide-up overflow-hidden">
       {selectedProject && (
         <ProjectDetailModal project={selectedProject} onClose={() => setSelectedProject(null)} />
       )}
 
-      {/* İstenen değişiklik 2: Header Div Bloğu değiştirildi */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-tx-primary">Açık Kaynak Projeleri Keşfet</h1>
@@ -212,7 +329,6 @@ export default function DiscoverPage() {
           </p>
         </div>
         
-        {/* Mod switch */}
         <button
           onClick={() => {
             setPersonalizedMode(p => !p);
@@ -237,7 +353,7 @@ export default function DiscoverPage() {
             {personalizedMode && likedLanguages.length > 0 ? 'Beğendiklerine benzer projeler aranıyor...' : 'Sana uygun projeler aranıyor...'}
           </p>
         </div>
-      ) : projects.length === 0 ? (
+      ) : projects?.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-32 border border-surface-border rounded-xl bg-surface-raised text-center px-4">
           <div className="w-16 h-16 rounded-full bg-surface-overlay flex items-center justify-center mb-6">
             <AlertCircle className="w-8 h-8 text-tx-muted" />
@@ -253,87 +369,104 @@ export default function DiscoverPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
-            <div key={project.id} className="bg-surface-raised border border-surface-border rounded-xl p-6 hover:border-accent/50 transition-colors flex flex-col h-full">
-
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="text-base font-semibold text-tx-primary truncate pr-3" title={project.name}>
-                  {project.name}
-                </h3>
-                <a href={project.url} target="_blank" rel="noopener noreferrer"
-                  className="text-tx-muted hover:text-accent transition-colors shrink-0">
-                  <ExternalLink size={16} />
-                </a>
-              </div>
-
-              {(() => {
-                const { score, reason } = calculateMatchScore(project, userLanguages, getLikedLanguages());
-                const color = score >= 75 ? 'text-green-400 bg-green-400/10 border-green-400/20'
-                  : score >= 55 ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20'
-                  : 'text-tx-muted bg-surface-overlay border-surface-border';
+        <>
+          {/* MOBİL: Swipe - 3 Kartlık Deste */}
+          <div className="md:hidden relative h-[480px] w-full flex items-center justify-center">
+            <AnimatePresence>
+              {projects?.slice(0, 3).reverse().map((project, index, array) => {
+                // array.length - 1 her zaman render edilen destedeki en üstteki karttır
+                const isTop = index === array.length - 1; 
                 return (
+                  <SwipeCard
+                    key={project.id}
+                    project={project}
+                    isTop={isTop}
+                    onSkip={handleSkip}
+                    onSave={handleSave}
+                    onDetail={setSelectedProject}
+                    userLanguages={userLanguages}
+                    getLikedLanguages={getLikedLanguages}
+                    calculateMatchScore={calculateMatchScore}
+                  />
+                );
+              })}
+            </AnimatePresence>
+            <div className="absolute -bottom-12 left-0 right-0 flex justify-between px-4 pb-1">
+              <p className="text-[11px] text-tx-muted/70 font-medium tracking-wide">← GEÇ (KAYDIR)</p>
+              <p className="text-[11px] text-tx-muted/70 font-medium tracking-wide">KAYDET (KAYDIR) →</p>
+            </div>
+          </div>
+
+          {/* MASAÜSTÜ: Grid */}
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects?.map((project) => {
+              const { score, reason } = calculateMatchScore(project, userLanguages, likedLanguages);
+              const matchColor = score >= 75
+                ? 'text-green-400 bg-green-400/10 border-green-400/20'
+                : score >= 55
+                ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20'
+                : 'text-tx-muted bg-surface-overlay border-surface-border';
+
+              return (
+                <div key={project.id} className="bg-surface-raised border border-surface-border rounded-xl p-6 hover:border-accent/50 transition-colors flex flex-col h-full">
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-base font-semibold text-tx-primary truncate pr-3" title={project.name}>{project.name}</h3>
+                    <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-tx-muted hover:text-accent transition-colors shrink-0">
+                      <ExternalLink size={16} />
+                    </a>
+                  </div>
+                  
                   <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${color}`}>
-                      🧠 AI Match: %{score}
-                    </span>
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${matchColor}`}>🧠 AI Match: %{score}</span>
                     <span className="text-[10px] text-tx-muted truncate">{reason}</span>
                   </div>
-                );
-              })()}
-
-              <p className="text-sm text-tx-secondary line-clamp-3 mb-4 flex-grow">{project.description}</p>
-
-              {project.topics.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {project.topics.map(topic => (
-                    <span key={topic} className="px-2 py-0.5 text-[10px] rounded bg-surface-overlay border border-surface-border text-tx-muted font-mono">{topic}</span>
-                  ))}
+                  
+                  <p className="text-sm text-tx-secondary line-clamp-3 mb-4 flex-grow">{project.description}</p>
+                  
+                  {project.topics?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {project.topics.map((topic: string) => (
+                        <span key={topic} className="px-2 py-0.5 text-[10px] rounded bg-surface-overlay border border-surface-border text-tx-muted font-mono">{topic}</span>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between pb-4 border-b border-surface-border mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1 text-tx-secondary text-xs">
+                        <Star size={13} className="text-yellow-500" />
+                        {(project.stars || 0).toLocaleString()}
+                      </div>
+                      <div className="flex items-center gap-1 text-tx-secondary text-xs">
+                        <GitFork size={13} />
+                        {(project.forks || 0).toLocaleString()}
+                      </div>
+                      <div className="flex items-center gap-1 text-green-400 text-xs">
+                        <AlertCircle size={13} />
+                        {project.issues || 0}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">
+                      {project.language || 'Bilinmiyor'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 mt-auto">
+                    <button onClick={() => handleSkip(project.id)} className="flex items-center justify-center py-2.5 px-3 rounded-lg border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-red-400 transition-all text-sm">
+                      <X size={15} />
+                    </button>
+                    <button onClick={() => setSelectedProject(project)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-accent transition-all font-medium text-sm">
+                      <BookOpen size={14} /> Detay
+                    </button>
+                    <button onClick={() => handleSave(project)} className="flex items-center justify-center py-2.5 px-3 rounded-lg bg-tx-primary text-surface-base hover:opacity-90 transition-all text-sm">
+                      <Heart size={15} />
+                    </button>
+                  </div>
                 </div>
-              )}
-
-              <div className="flex items-center justify-between pb-4 border-b border-surface-border mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1 text-tx-secondary text-xs">
-                    <Star size={13} className="text-yellow-500" />{project.stars.toLocaleString()}
-                  </div>
-                  <div className="flex items-center gap-1 text-tx-secondary text-xs">
-                    <GitFork size={13} />{project.forks.toLocaleString()}
-                  </div>
-                  <div className="flex items-center gap-1 text-green-400 text-xs">
-                    <AlertCircle size={13} />{project.issues}
-                  </div>
-                </div>
-                <span className="text-[10px] font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">
-                  {project.language}
-                </span>
-              </div>
-
-              {/* 3 buton */}
-              <div className="flex items-center gap-2 mt-auto">
-                <button
-                  onClick={() => handleSkip(project.id)}
-                  className="flex items-center justify-center py-2.5 px-3 rounded-lg border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-red-400 transition-all text-sm"
-                >
-                  <X size={15} />
-                </button>
-                <button
-                  onClick={() => setSelectedProject(project)}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-accent transition-all font-medium text-sm"
-                >
-                  <BookOpen size={14} />
-                  Detay
-                </button>
-                <button
-                  onClick={() => handleSave(project)}
-                  className="flex items-center justify-center py-2.5 px-3 rounded-lg bg-tx-primary text-surface-base hover:opacity-90 transition-all text-sm"
-                >
-                  <Heart size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
