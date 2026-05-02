@@ -88,7 +88,7 @@ VITE_SUPABASE_ANON_KEY=your_anon_key
 
 # 4. Run project
 npm run dev
-🌐 Live Demo 👉 devmatchai.vercel.app
+🌐 Live Demo 👉 [devmatchai.vercel.app](https://devmatchai.vercel.app)
 
 📈 Future Improvements
 Team matching (collaborative building)
