@@ -27,23 +27,18 @@ function SwipeCard({ project, isTop, onSkip, onSave, onDetail, userLanguages, ge
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
   const cardOpacity = useTransform(x, [-200, 0, 200], [0.8, 1, 0.8]);
-  
-  // Damga opaklıkları - Mobilde daha hassas çalışması için eşikleri ayarladım
   const likeOpacity = useTransform(x, [20, 100], [0, 1]);
   const skipOpacity = useTransform(x, [-20, -100], [0, 1]);
 
   const handleDragEnd = (_: any, info: any) => {
-    const threshold = 100; // Ne kadar kaydırılırsa kabul edilecek
+    const threshold = 100;
     if (info.offset.x > threshold) {
       animate(x, 500, { duration: 0.3, ease: "easeOut" });
       setTimeout(() => onSave(project), 200);
-    } 
-    else if (info.offset.x < -threshold) {
+    } else if (info.offset.x < -threshold) {
       animate(x, -500, { duration: 0.3, ease: "easeOut" });
       setTimeout(() => onSkip(project.id), 200);
-    } 
-    else {
-      // Yeterince kaydırılmadıysa yay gibi merkeze geri dönsün
+    } else {
       animate(x, 0, { type: "spring", stiffness: 300, damping: 20 });
     }
   };
@@ -57,37 +52,49 @@ function SwipeCard({ project, isTop, onSkip, onSave, onDetail, userLanguages, ge
 
   return (
     <motion.div
-      style={{ x, rotate, opacity: cardOpacity }}
-      // TINDER EFEKTİ: Sadece üstteki kart sürüklenebilir. Alttakiler küçültülüp aşağı itilir.
-      animate={{ 
-        scale: isTop ? 1 : 0.92, 
+      style={{ x, rotate, opacity: cardOpacity, pointerEvents: isTop ? 'auto' : 'none' }}
+      animate={{
+        scale: isTop ? 1 : 0.92,
         y: isTop ? 0 : 25,
         zIndex: isTop ? 10 : 1,
-        pointerEvents: isTop ? 'auto' : 'none' 
       }}
       drag={isTop ? "x" : false}
-      dragConstraints={{ left: 0, right: 0 }} // Parmak bırakıldığında merkeze dönme kuvveti uygular
-      dragElastic={0.8} // Mobilde kaydırmayı kolaylaştırır
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.8}
       onDragEnd={handleDragEnd}
       className="absolute w-full cursor-grab active:cursor-grabbing select-none touch-none"
     >
-      {/* SAĞA KAYDIR — Koyu Yeşil Tik Damgası (Framer Motion Rotate ile düzeltildi) */}
+      {/* Yeşil Onay Damgası */}
       <motion.div
-        style={{ opacity: likeOpacity, rotate: -15 }}
-        className="absolute top-8 left-6 z-30 w-24 h-24 rounded-full bg-green-950/90 border-4 border-green-500 flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.4)] pointer-events-none"
+        style={{ opacity: likeOpacity, rotate: -12 }}
+        className="absolute top-6 left-5 z-30 pointer-events-none"
       >
-        <Check strokeWidth={4} className="w-12 h-12 text-green-400" />
+        <div className="relative flex items-center justify-center w-20 h-20">
+          <div className="absolute inset-0 rounded-full border-[3px] border-green-400 bg-green-950/80" />
+          <div className="absolute inset-2 rounded-full bg-green-500/10" />
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" className="relative z-10">
+            <path d="M7 19L14 26L29 11" stroke="#4ade80" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <p className="text-center text-[10px] font-bold text-green-400 tracking-widest mt-1">KAYDET</p>
       </motion.div>
 
-      {/* SOLA KAYDIR — Koyu Kırmızı Çarpı Damgası */}
+      {/* Kırmızı Ret Damgası */}
       <motion.div
-        style={{ opacity: skipOpacity, rotate: 15 }}
-        className="absolute top-8 right-6 z-30 w-24 h-24 rounded-full bg-red-950/90 border-4 border-red-500 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] pointer-events-none"
+        style={{ opacity: skipOpacity, rotate: 12 }}
+        className="absolute top-6 right-5 z-30 pointer-events-none"
       >
-        <X strokeWidth={4} className="w-12 h-12 text-red-400" />
+        <div className="relative flex items-center justify-center w-20 h-20">
+          <div className="absolute inset-0 rounded-full border-[3px] border-red-400 bg-red-950/80" />
+          <div className="absolute inset-2 rounded-full bg-red-500/10" />
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="relative z-10">
+            <path d="M8 8L24 24M24 8L8 24" stroke="#f87171" strokeWidth="3.5" strokeLinecap="round" />
+          </svg>
+        </div>
+        <p className="text-center text-[10px] font-bold text-red-400 tracking-widest mt-1">GEÇ</p>
       </motion.div>
 
-      <div className="bg-surface-raised border border-surface-border rounded-2xl p-6 shadow-2xl relative overflow-hidden h-[450px] flex flex-col">
+      <div className="bg-surface-raised border border-surface-border rounded-2xl p-6 shadow-2xl h-[470px] flex flex-col">
         <div className="flex justify-between items-start mb-3">
           <h3 className="text-lg font-semibold text-tx-primary truncate pr-3">{project.name}</h3>
           <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-tx-muted hover:text-accent transition-colors shrink-0">
@@ -120,14 +127,23 @@ function SwipeCard({ project, isTop, onSkip, onSave, onDetail, userLanguages, ge
           <span className="text-[10px] font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">{project.language || 'Bilinmiyor'}</span>
         </div>
 
-        <div className="flex items-center gap-2 relative z-40">
-          <button onClick={() => { if(isTop) { animate(x, -500, { duration: 0.2 }); setTimeout(() => onSkip(project.id), 200); } }} className="flex items-center justify-center py-3 px-4 rounded-xl border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-red-400 transition-all text-sm">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { if (isTop) { animate(x, -500, { duration: 0.2 }); setTimeout(() => onSkip(project.id), 200); } }}
+            className="flex items-center justify-center py-3 px-4 rounded-xl border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-red-400 transition-all"
+          >
             <X size={18} />
           </button>
-          <button onClick={() => isTop && onDetail(project)} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-accent transition-all font-medium text-sm">
+          <button
+            onClick={() => isTop && onDetail(project)}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-accent transition-all font-medium text-sm"
+          >
             <BookOpen size={16} /> Detay
           </button>
-          <button onClick={() => { if(isTop) { animate(x, 500, { duration: 0.2 }); setTimeout(() => onSave(project), 200); } }} className="flex items-center justify-center py-3 px-4 rounded-xl bg-tx-primary text-surface-base hover:opacity-90 transition-all text-sm">
+          <button
+            onClick={() => { if (isTop) { animate(x, 500, { duration: 0.2 }); setTimeout(() => onSave(project), 200); } }}
+            className="flex items-center justify-center py-3 px-4 rounded-xl bg-tx-primary text-surface-base hover:opacity-90 transition-all"
+          >
             <Heart size={18} />
           </button>
         </div>
@@ -136,7 +152,6 @@ function SwipeCard({ project, isTop, onSkip, onSave, onDetail, userLanguages, ge
   );
 }
 
-// Proje detay modalı
 function ProjectDetailModal({ project, onClose }: { project: Project; onClose: () => void }) {
   const [detail, setDetail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -148,7 +163,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
       techStack: [project.language, ...(project.topics || [])].filter(Boolean),
       difficulty: 'Orta',
     };
-
     fetch(EDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
@@ -174,33 +188,20 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
       <div className="bg-surface-base border border-surface-border rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
-          <h2 className="text-xl font-bold text-tx-primary">{project.name} Raporu</h2>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-overlay text-tx-secondary transition-colors">
+          <h2 className="text-xl font-bold text-tx-primary truncate pr-4">{project.name}</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-overlay text-tx-secondary transition-colors shrink-0">
             <X size={20} />
           </button>
         </div>
-
         <div className="flex items-center gap-4 px-6 py-3 border-b border-surface-border shrink-0 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs text-tx-secondary">
-            <Star size={13} className="text-yellow-500" />
-            {(project.stars || 0).toLocaleString()}
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-tx-secondary">
-            <GitFork size={13} />
-            {(project.forks || 0).toLocaleString()}
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-green-400">
-            <AlertCircle size={13} />
-            {project.issues || 0} açık issue
-          </div>
-          <span className="text-xs font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">
-            {project.language || 'Bilinmiyor'}
-          </span>
+          <div className="flex items-center gap-1.5 text-xs text-tx-secondary"><Star size={13} className="text-yellow-500" />{(project.stars || 0).toLocaleString()}</div>
+          <div className="flex items-center gap-1.5 text-xs text-tx-secondary"><GitFork size={13} />{(project.forks || 0).toLocaleString()}</div>
+          <div className="flex items-center gap-1.5 text-xs text-green-400"><AlertCircle size={13} />{project.issues || 0} açık issue</div>
+          <span className="text-xs font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">{project.language || 'Bilinmiyor'}</span>
           {project.topics?.map(t => (
             <span key={t} className="text-[10px] px-2 py-0.5 rounded bg-surface-overlay border border-surface-border text-tx-muted font-mono">{t}</span>
           ))}
         </div>
-
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
@@ -211,7 +212,6 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
             <div className="text-sm text-tx-secondary leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(detail ?? '') }} />
           )}
         </div>
-
         <div className="p-4 border-t border-surface-border shrink-0">
           <p className="text-xs text-tx-muted text-center">Projeyi beğendiysen kart ekranına dön ve "Kaydet" butonuna bas.</p>
         </div>
@@ -229,14 +229,12 @@ export default function DiscoverPage() {
   const [userRepoCount, setUserRepoCount] = useState(0);
   const [personalizedMode, setPersonalizedMode] = useState(true);
 
-  // Gizli sekme çökmelerini engellemek için Try-Catch blokları eklendi
   const getSeenIds = (): string[] => {
     try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'); } catch { return []; }
   };
   const getLikedLanguages = (): string[] => {
     try { return JSON.parse(localStorage.getItem(LIKED_LANGS_KEY) || '[]'); } catch { return []; }
   };
-
   const addSeenIds = (ids: string[]) => {
     try {
       const current = getSeenIds();
@@ -244,7 +242,6 @@ export default function DiscoverPage() {
       localStorage.setItem(SEEN_KEY, JSON.stringify(updated.slice(-200)));
     } catch {}
   };
-
   const addLikedLanguage = (language: string) => {
     if (!language || language === 'Bilinmiyor') return;
     try {
@@ -275,7 +272,7 @@ export default function DiscoverPage() {
 
   useEffect(() => {
     loadProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, personalizedMode]);
 
   const loadProjects = async () => {
@@ -294,10 +291,8 @@ export default function DiscoverPage() {
     setProjects(prev => prev.filter(p => p.id !== project.id));
     addLikedLanguage(project.language);
     project.topics?.forEach(t => addLikedLanguage(t));
-
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-
     await supabase.from('saved_projects').insert({
       user_id: session.user.id,
       project_id: project.id,
@@ -328,13 +323,8 @@ export default function DiscoverPage() {
               : 'Tüm kategorilerden rastgele projeler'}
           </p>
         </div>
-        
         <button
-          onClick={() => {
-            setPersonalizedMode(p => !p);
-            setPage(1);
-            setProjects([]);
-          }}
+          onClick={() => { setPersonalizedMode(p => !p); setPage(1); setProjects([]); }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all shrink-0 ${
             personalizedMode
               ? 'border-purple-400/30 bg-purple-400/10 text-purple-400'
@@ -370,12 +360,11 @@ export default function DiscoverPage() {
         </div>
       ) : (
         <>
-          {/* MOBİL: Swipe - 3 Kartlık Deste */}
-          <div className="md:hidden relative h-[480px] w-full flex items-center justify-center">
+          {/* MOBİL: Tinder Deste */}
+          <div className="md:hidden relative h-[520px] w-full">
             <AnimatePresence>
               {projects?.slice(0, 3).reverse().map((project, index, array) => {
-                // array.length - 1 her zaman render edilen destedeki en üstteki karttır
-                const isTop = index === array.length - 1; 
+                const isTop = index === array.length - 1;
                 return (
                   <SwipeCard
                     key={project.id}
@@ -391,9 +380,9 @@ export default function DiscoverPage() {
                 );
               })}
             </AnimatePresence>
-            <div className="absolute -bottom-12 left-0 right-0 flex justify-between px-4 pb-1">
-              <p className="text-[11px] text-tx-muted/70 font-medium tracking-wide">← GEÇ (KAYDIR)</p>
-              <p className="text-[11px] text-tx-muted/70 font-medium tracking-wide">KAYDET (KAYDIR) →</p>
+            <div className="absolute -bottom-8 left-0 right-0 flex justify-between px-4">
+              <p className="text-[11px] text-tx-muted/70 font-medium tracking-wide">← GEÇ</p>
+              <p className="text-[11px] text-tx-muted/70 font-medium tracking-wide">KAYDET →</p>
             </div>
           </div>
 
@@ -406,23 +395,17 @@ export default function DiscoverPage() {
                 : score >= 55
                 ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20'
                 : 'text-tx-muted bg-surface-overlay border-surface-border';
-
               return (
                 <div key={project.id} className="bg-surface-raised border border-surface-border rounded-xl p-6 hover:border-accent/50 transition-colors flex flex-col h-full">
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="text-base font-semibold text-tx-primary truncate pr-3" title={project.name}>{project.name}</h3>
-                    <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-tx-muted hover:text-accent transition-colors shrink-0">
-                      <ExternalLink size={16} />
-                    </a>
+                    <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-tx-muted hover:text-accent transition-colors shrink-0"><ExternalLink size={16} /></a>
                   </div>
-                  
                   <div className="flex items-center gap-2 mb-3">
                     <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${matchColor}`}>🧠 AI Match: %{score}</span>
                     <span className="text-[10px] text-tx-muted truncate">{reason}</span>
                   </div>
-                  
                   <p className="text-sm text-tx-secondary line-clamp-3 mb-4 flex-grow">{project.description}</p>
-                  
                   {project.topics?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-4">
                       {project.topics.map((topic: string) => (
@@ -430,37 +413,18 @@ export default function DiscoverPage() {
                       ))}
                     </div>
                   )}
-                  
                   <div className="flex items-center justify-between pb-4 border-b border-surface-border mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1 text-tx-secondary text-xs">
-                        <Star size={13} className="text-yellow-500" />
-                        {(project.stars || 0).toLocaleString()}
-                      </div>
-                      <div className="flex items-center gap-1 text-tx-secondary text-xs">
-                        <GitFork size={13} />
-                        {(project.forks || 0).toLocaleString()}
-                      </div>
-                      <div className="flex items-center gap-1 text-green-400 text-xs">
-                        <AlertCircle size={13} />
-                        {project.issues || 0}
-                      </div>
+                      <div className="flex items-center gap-1 text-tx-secondary text-xs"><Star size={13} className="text-yellow-500" />{(project.stars || 0).toLocaleString()}</div>
+                      <div className="flex items-center gap-1 text-tx-secondary text-xs"><GitFork size={13} />{(project.forks || 0).toLocaleString()}</div>
+                      <div className="flex items-center gap-1 text-green-400 text-xs"><AlertCircle size={13} />{project.issues || 0}</div>
                     </div>
-                    <span className="text-[10px] font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">
-                      {project.language || 'Bilinmiyor'}
-                    </span>
+                    <span className="text-[10px] font-medium text-tx-primary px-2 py-0.5 rounded bg-surface-overlay border border-surface-border font-mono">{project.language || 'Bilinmiyor'}</span>
                   </div>
-                  
                   <div className="flex items-center gap-2 mt-auto">
-                    <button onClick={() => handleSkip(project.id)} className="flex items-center justify-center py-2.5 px-3 rounded-lg border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-red-400 transition-all text-sm">
-                      <X size={15} />
-                    </button>
-                    <button onClick={() => setSelectedProject(project)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-accent transition-all font-medium text-sm">
-                      <BookOpen size={14} /> Detay
-                    </button>
-                    <button onClick={() => handleSave(project)} className="flex items-center justify-center py-2.5 px-3 rounded-lg bg-tx-primary text-surface-base hover:opacity-90 transition-all text-sm">
-                      <Heart size={15} />
-                    </button>
+                    <button onClick={() => handleSkip(project.id)} className="flex items-center justify-center py-2.5 px-3 rounded-lg border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-red-400 transition-all text-sm"><X size={15} /></button>
+                    <button onClick={() => setSelectedProject(project)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-surface-border text-tx-secondary hover:bg-surface-overlay hover:text-accent transition-all font-medium text-sm"><BookOpen size={14} /> Detay</button>
+                    <button onClick={() => handleSave(project)} className="flex items-center justify-center py-2.5 px-3 rounded-lg bg-tx-primary text-surface-base hover:opacity-90 transition-all text-sm"><Heart size={15} /></button>
                   </div>
                 </div>
               );
